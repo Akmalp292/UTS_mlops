@@ -328,3 +328,4 @@ if st.session_state.get("show_compare"):
 
 st.markdown("---")
 st.caption("IK‑SD membantu pemangku kepentingan memprioritaskan intervensi: turunkan PTR, tingkatkan proporsi Guru ≥S1, tekan putus/mengulang. Output bersifat indikatif — gunakan bersama data resmi daerah.")
+
