@@ -116,21 +116,56 @@ stress_score = weighted_score(stress, weights)
 st.markdown("---")
 colA, colB, colC = st.columns(3)
 with colA:
-    st.metric("Performance Readiness", f"{perf_score:.1f}")
+    st.metric("Performance Readiness", f"{perf_score:.1f}", help="Semakin tinggi semakin siap berprestasi.")
 with colB:
-    st.metric("Stress Health", f"{stress_score:.1f}")
+    st.metric("Stress Health", f"{stress_score:.1f}", help="Semakin tinggi semakin sehat (stres terkendali).")
 with colC:
-    st.metric("Overall Signal", traffic_light(min(perf_score, stress_score)))
+    overall = min(perf_score, stress_score)
+    st.metric("Overall Signal", traffic_light(overall))
 
+# Gauge — Overall Balance
+fig_g = go.Figure(go.Indicator(
+    mode="gauge+number",
+    value=overall,
+    gauge={
+        'axis': {'range': [0, 100]},
+        'bar': {'thickness': 0.3},
+        'steps': [
+            {'range': [0, 50], 'color': '#ffd6d6'},
+            {'range': [50, 75], 'color': '#fff4cc'},
+            {'range': [75, 100], 'color': '#d9f7be'}
+        ]
+    },
+    title={'text': 'Overall Balance'}
+))
+fig_g.update_layout(height=240, margin=dict(l=10, r=10, t=40, b=10))
+st.plotly_chart(fig_g, use_container_width=True)
+
+# Radar chart — Performance vs StressHealth
 radar_df = pd.DataFrame({
-    'Faktor': list(vals.keys()),
-    'Performa': [perf[k] for k in vals],
-    'Kesehatan Stres': [stress[k] for k in vals],
+    'Metric': list(vals.keys()),
+    'Performance': [perf[k] for k in vals],
+    'StressHealth': [stress[k] for k in vals],
 })
-fig = px.line_polar(radar_df, r='Performa', theta='Faktor', line_close=True, range_r=[0,100])
-fig.add_trace(px.line_polar(radar_df, r='Kesehatan Stres', theta='Faktor', line_close=True).data[0])
-fig.update_layout(height=420, legend=dict(orientation='h', yanchor='bottom', y=-0.2, xanchor='center', x=0.5))
-st.plotly_chart(fig, use_container_width=True)
+fig_radar = px.line_polar(radar_df, r='Performance', theta='Metric', line_close=True, range_r=[0,100])
+fig_radar.add_trace(px.line_polar(radar_df, r='StressHealth', theta='Metric', line_close=True).data[0])
+fig_radar.update_layout(height=420, legend=dict(orientation='h', yanchor='bottom', y=-0.15, xanchor='center', x=0.5))
+st.plotly_chart(fig_radar, use_container_width=True)
+
+# Bar chart — Factor Strengths (sorted by combined score)
+strength_df = pd.DataFrame({
+    'Factor': list(vals.keys()),
+    'Performance': [perf[k] for k in vals],
+    'StressHealth': [stress[k] for k in vals],
+})
+strength_df['Combined'] = (strength_df['Performance'] + strength_df['StressHealth']) / 2.0
+strength_df = strength_df.sort_values('Combined', ascending=False)
+fig_bar = px.bar(strength_df.melt(id_vars='Factor', value_vars=['Performance','StressHealth'],
+                     var_name='Dimension', value_name='Score'),
+                 x='Factor', y='Score', color='Dimension', barmode='group', height=420,
+                 title='Factor Strengths — Higher is Better')
+fig_bar.update_layout(xaxis_tickangle=-20, margin=dict(l=10, r=10, t=50, b=100))
+st.plotly_chart(fig_bar, use_container_width=True)
 
 # -----------------------------
 # Quick Tips
@@ -151,4 +186,5 @@ for t in tips:
 
 st.markdown("---")
 st.caption("SSPI adalah alat edukatif untuk eksplorasi keseimbangan belajar dan kesejahteraan siswa. Tidak menggantikan asesmen psikolog profesional.")
+
 
