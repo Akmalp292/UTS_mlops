@@ -23,12 +23,6 @@ MODEL_PATH = "models/padang_food_mobilenetv3.keras"
 CLASSES_PATH = "models/classes.json"
 
 if not MODEL_PATH:
-    # Debug info kalau gagal
-st.write("Root dir:", os.listdir("."))
-if os.path.exists("models"):
-    st.write("Models dir:", os.listdir("models"))
-else:
-    st.write("❌ Folder 'models' tidak ada.")
     
     st.error(
         "Model file tidak ditemukan di candidate paths. "
