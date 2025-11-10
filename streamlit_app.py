@@ -111,7 +111,9 @@ def build_recommendation(vals: Dict[str, float]) -> str:
 # Header & Navigation
 # -----------------------------
 st.header("SSPI — Student Stress & Performance Insights")
-st.caption("Alat sederhana untuk memahami keseimbangan antara stres dan performa belan"], index=0)
+st.caption("Alat sederhana untuk memahami keseimbangan antara stres dan performa belajar siswa.")
+section = st.sidebar.radio("Navigasi", ["Input & Hasil", "Evaluasi & Saran"], index=0)
+
 
 # -----------------------------
 # SECTION 1 — INPUT & HASIL
