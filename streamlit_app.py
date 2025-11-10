@@ -1,43 +1,65 @@
-import os
-import json
-import numpy as np
-from io import BytesIO
-from PIL import Image
-
+import os, json, glob
 import streamlit as st
+import numpy as np
+from PIL import Image
 import tensorflow as tf
+from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.applications import mobilenet_v3
-from tensorflow.keras.models import load_model
-import matplotlib.pyplot as plt
 
-# ==============================
-# CONFIG
-# ==============================
-MODEL_PATH = "models/padang_food_mobilenetv3.keras"
-CLASSES_PATH = "models/classes.json"
-TARGET_SIZE = (224, 224)  # sama seperti training
+# ====== Config & helpers ======
+TARGET_SIZE = (224, 224)
 PREPROCESS = mobilenet_v3.preprocess_input
 
-st.set_page_config(
-    page_title="Padang Cuisine Classifier",
-    page_icon="🍛",
-    layout="centered"
+def find_first(*candidates):
+    """Return first existing path from candidates; else ''."""
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return ""
+
+# Kandidat lokasi model (urutkan yang paling kamu inginkan dulu)
+MODEL_PATH = find_first(
+    "models/padang_food_mobilenetv3.keras",
+    "models/foods_classification_model_checkpoint.keras",
+    "padang_food_mobilenetv3.keras",
+    "foods_classification_model_checkpoint.keras",
 )
 
+# Kandidat lokasi label json
+CLASSES_PATH = find_first(
+    "models/classes.json",
+    "classes.json"
+)
+
+# Debug info kalau gagal
+if not MODEL_PATH:
+    st.error(
+        "Model file tidak ditemukan di candidate paths. "
+        "Isi repo saat runtime:\n"
+        f"Root files: {os.listdir('.')}\n"
+        f"Models dir: {os.listdir('models') if os.path.exists('models') else 'tidak ada'}"
+    )
+    st.stop()
+
+if not CLASSES_PATH:
+    st.error(
+        "classes.json tidak ditemukan. Pastikan file mapping label ada di "
+        "`models/classes.json` atau `classes.json`."
+    )
+    st.stop()
+
 @st.cache_resource(show_spinner=False)
-def load_model_and_labels(model_path: str, classes_path: str):
-    # Load model
+def load_model_and_labels(model_path, classes_path):
     model = load_model(model_path)
-    # Load label list (index -> label name)
     with open(classes_path, "r", encoding="utf-8") as f:
         index_to_label = json.load(f)
-
-    # Pastikan urutan label benar (0..N-1)
-    num_classes = model.output_shape[-1]
-    labels = [index_to_label[str(i)] if isinstance(index_to_label, dict) and str(i) in index_to_label
-              else index_to_label[i]  # kalau list
-              for i in range(num_classes)]
+    # dukung format dict ataupun list
+    if isinstance(index_to_label, dict):
+        num_classes = model.output_shape[-1]
+        labels = [index_to_label[str(i)] for i in range(num_classes)]
+    else:
+        labels = index_to_label
     return model, labels
 
 def preprocess_pil(img_pil: Image.Image):
