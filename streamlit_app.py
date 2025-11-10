@@ -83,6 +83,16 @@ def plot_probs(labels, probs, top_k=5):
 st.title("🍛 Padang Cuisine Classifier")
 st.caption("Upload foto makanan Padang → model akan memprediksi kelasnya (MobileNetV3).")
 
+st.write("Root dir:", os.listdir("."))
+st.write("Models dir:", os.listdir("models"))
+
+try:
+    size = os.path.getsize("models/padang_food_mobilenetv3.keras")
+    st.write("Model size (bytes):", size)
+except Exception as e:
+    st.write("Size check error:", e)
+
+
 # Load model
 with st.spinner("Loading model & labels..."):
     try:
