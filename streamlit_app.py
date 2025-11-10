@@ -1,7 +1,5 @@
-import os
-import json
 import math
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -9,293 +7,247 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-# ==========================
-# App Config
-# ==========================
+# =====================================
+# Streamlit Config
+# =====================================
 st.set_page_config(
-    page_title="Analisis Kelayakan SD Indonesia",
+    page_title="Analisis Kelayakan SD Indonesia — Input Manual",
     page_icon="📚",
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 
-st.session_state.setdefault("VERSION", "v0.1.0")
+st.session_state.setdefault("VERSION", "v0.2.0-input-only")
 
-# ==========================
-# Helper & Caching
-# ==========================
-REQUIRED_COLUMNS = [
-    "Provinsi",
-    "Sekolah",
-    "Siswa",
-    "Mengulang",
-    "Putus Sekolah",
-    "Kepala Sekolah dan Guru(<S1)",
-    "Kepala Sekolah dan Guru(≥ S1)",
-    "Tenaga Kependidikan(SM)",
-    "Tenaga Kependidikan(>SM)",
-    "Rombongan Belajar",
-]
+# =====================================
+# Helpers
+# =====================================
+LOWER_BETTER = ["Rasio Siswa per Guru", "Putus per 1k Siswa", "Mengulang per 1k Siswa", "Rasio Rombel per Sekolah"]
+HIGHER_BETTER = ["% Guru ≥S1", "Tendik per Sekolah"]
 
-
-@st.cache_data(show_spinner=False)
-def load_data(path_or_buffer) -> pd.DataFrame:
-    df = pd.read_csv(path_or_buffer)
-    df.columns = [c.strip() for c in df.columns]
-    rename_map = {
-        "Kepala Sekolah dan Guru(>= S1)": "Kepala Sekolah dan Guru(≥ S1)",
-        "Tenaga Kependidikan(> SM)": "Tenaga Kependidikan(>SM)",
-        "Putus sekolah": "Putus Sekolah",
-        "Rombel": "Rombongan Belajar",
-        "Prov.": "Provinsi",
-    }
-    df = df.rename(columns=rename_map)
-
-    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
-    if missing:
-        st.warning(
-            f"Kolom wajib berikut tidak ditemukan di CSV: {missing}.\n\n"
-            "Pastikan nama kolom sesuai."
-        )
-    return df
-
-
-def _safe_div(n, d):
-    try:
-        return float(n) / float(d) if float(d) != 0 else np.nan
-    except Exception:
-        return np.nan
-
-
-def compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    out["Rasio Siswa per Sekolah"] = out.apply(lambda r: _safe_div(r["Siswa"], r["Sekolah"]), axis=1)
-    out["Rasio Rombel per Sekolah"] = out.apply(lambda r: _safe_div(r["Rombongan Belajar"], r["Sekolah"]), axis=1)
-
-    out["Total Guru"] = out["Kepala Sekolah dan Guru(<S1)"] + out["Kepala Sekolah dan Guru(≥ S1)"]
-    out["% Guru ≥S1"] = out.apply(lambda r: _safe_div(r["Kepala Sekolah dan Guru(≥ S1)"], r["Total Guru"]) * 100, axis=1)
-    out["Rasio Siswa per Guru"] = out.apply(lambda r: _safe_div(r["Siswa"], r["Total Guru"]), axis=1)
-
-    out["Tendik per Sekolah"] = out.apply(
-        lambda r: _safe_div(r["Tenaga Kependidikan(SM)"] + r["Tenaga Kependidikan(>SM)"], r["Sekolah"]), axis=1
-    )
-
-    out["Putus per 1k Siswa"] = out.apply(lambda r: _safe_div(r["Putus Sekolah"], r["Siswa"]) * 1000, axis=1)
-    out["Mengulang per 1k Siswa"] = out.apply(lambda r: _safe_div(r["Mengulang"], r["Siswa"]) * 1000, axis=1)
-    return out
-
-
-# ==========================
-# Feasibility Score
-# ==========================
 DEFAULT_WEIGHTS = {
     "Rasio Siswa per Guru": 0.30,
     "% Guru ≥S1": 0.25,
     "Putus per 1k Siswa": 0.20,
     "Mengulang per 1k Siswa": 0.10,
     "Rasio Rombel per Sekolah": 0.10,
-    "Tendik per Sekolah": 0.05
+    "Tendik per Sekolah": 0.05,
+}
+
+# Default benchmarks (bisa diubah dari sidebar)
+DEFAULT_BENCHMARKS = {
+    # format: (ideal, worst)
+    "Rasio Siswa per Guru": (16.0, 40.0),         # lebih kecil lebih baik
+    "% Guru ≥S1": (90.0, 50.0),                   # lebih besar lebih baik
+    "Putus per 1k Siswa": (0.10, 5.00),           # lebih kecil lebih baik
+    "Mengulang per 1k Siswa": (0.50, 8.00),       # lebih kecil lebih baik
+    "Rasio Rombel per Sekolah": (6.0, 20.0),      # lebih kecil lebih baik
+    "Tendik per Sekolah": (5.0, 0.0),             # lebih besar lebih baik
 }
 
 
-@st.cache_data(show_spinner=False)
-def compute_scores(df_ratios: pd.DataFrame, weights: Dict[str, float]) -> pd.DataFrame:
-    df = df_ratios.copy()
-
-    pos_feats = ["% Guru ≥S1", "Tendik per Sekolah"]
-    neg_feats = ["Rasio Siswa per Guru", "Putus per 1k Siswa", "Mengulang per 1k Siswa", "Rasio Rombel per Sekolah"]
-
-    for col in pos_feats + neg_feats:
-        mu = df[col].mean()
-        sd = df[col].std(ddof=0) or 1.0
-        df[f"z_{col}"] = (df[col] - mu) / sd
-
-    def sigmoid(x):
-        return 1 / (1 + np.exp(-x))
-
-    for col in pos_feats:
-        df[f"s_{col}"] = sigmoid(df[f"z_{col}"])
-    for col in neg_feats:
-        df[f"s_{col}"] = sigmoid(-df[f"z_{col}"])
-
-    def row_score(row):
-        s = 0.0
-        for k, w in weights.items():
-            s += w * row[f"s_{k}"]
-        s = s / sum(weights.values())
-        return float(s) * 100.0
-
-    df["Feasibility Score"] = df.apply(row_score, axis=1)
-    return df
+def _safe_div(n, d):
+    try:
+        n = float(n)
+        d = float(d)
+        return n / d if d != 0 else np.nan
+    except Exception:
+        return np.nan
 
 
-# ==========================
-# Sidebar
-# ==========================
-st.sidebar.title("📚 Analisis Kelayakan SD — Indonesia")
+def compute_ratios_from_counts(values: Dict[str, float]) -> Dict[str, float]:
+    sekolah = values["Sekolah"]
+    siswa = values["Siswa"]
+    mengulang = values["Mengulang"]
+    putus = values["Putus Sekolah"]
+    guru_lt = values["Kepala Sekolah dan Guru(<S1)"]
+    guru_ge = values["Kepala Sekolah dan Guru(≥ S1)"]
+    tendik_sm = values["Tenaga Kependidikan(SM)"]
+    tendik_gt = values["Tenaga Kependidikan(>SM)"]
+    rombel = values["Rombongan Belajar"]
+
+    total_guru = guru_lt + guru_ge
+    rasio_siswa_per_sekolah = _safe_div(siswa, sekolah)
+    rasio_rombel_per_sekolah = _safe_div(rombel, sekolah)
+    pct_guru_s1 = _safe_div(guru_ge, total_guru) * 100
+    rasio_siswa_per_guru = _safe_div(siswa, total_guru)
+    tendik_per_sekolah = _safe_div(tendik_sm + tendik_gt, sekolah)
+    putus_per_1k = _safe_div(putus, siswa) * 1000
+    mengulang_per_1k = _safe_div(mengulang, siswa) * 1000
+
+    return {
+        "Rasio Siswa per Sekolah": rasio_siswa_per_sekolah,
+        "Rasio Rombel per Sekolah": rasio_rombel_per_sekolah,
+        "% Guru ≥S1": pct_guru_s1,
+        "Rasio Siswa per Guru": rasio_siswa_per_guru,
+        "Tendik per Sekolah": tendik_per_sekolah,
+        "Putus per 1k Siswa": putus_per_1k,
+        "Mengulang per 1k Siswa": mengulang_per_1k,
+        "Total Guru": total_guru,
+    }
+
+
+def score_metric(value: float, ideal: float, worst: float, higher_better: bool) -> float:
+    """Map a metric to 0..100 given ideal and worst bounds.
+    Uses linear scaling with clipping.
+    """
+    if value is None or np.isnan(value):
+        return 0.0
+
+    # Ensure non-identical bounds
+    if ideal == worst:
+        worst = ideal + (1e-6 if higher_better else -1e-6)
+
+    if higher_better:
+        # ideal high -> 100, worst low -> 0
+        return float(np.clip((value - worst) / (ideal - worst), 0, 1) * 100)
+    else:
+        # ideal low -> 100, worst high -> 0
+        return float(np.clip((worst - value) / (worst - ideal), 0, 1) * 100)
+
+
+def compute_feasibility_score(metrics: Dict[str, float], weights: Dict[str, float], benchmarks: Dict[str, tuple]) -> Dict[str, float]:
+    sub_scores = {}
+    for k, w in weights.items():
+        ideal, worst = benchmarks[k]
+        hb = (k in HIGHER_BETTER)
+        sub_scores[k] = score_metric(metrics[k], ideal, worst, hb)
+
+    total_w = sum(weights.values()) or 1.0
+    score = sum(sub_scores[k] * weights[k] for k in weights) / total_w
+    return {"score": score, **sub_scores}
+
+
+# =====================================
+# Sidebar Controls
+# =====================================
+st.sidebar.title("📚 Kelayakan SD — Input Manual")
 st.sidebar.caption("Streamlit app — " + st.session_state["VERSION"])
 
-st.sidebar.markdown("### 1) Unggah Dataset CSV")
-uploaded = st.sidebar.file_uploader(
-    "Pilih file CSV 'kelayakan-pendidikan-indonesia.csv'",
-    type=["csv"],
-    help="Gunakan dataset Kemendikbudristek yang berisi agregat provinsi."
-)
+st.sidebar.markdown("### Bobot Skor")
+weights = DEFAULT_WEIGHTS.copy()
+for k in list(weights.keys()):
+    weights[k] = st.sidebar.slider(k, 0.0, 1.0, float(weights[k]), 0.05)
+# Normalize
+w_sum = sum(weights.values()) or 1.0
+for k in weights:
+    weights[k] = weights[k] / w_sum
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 2) Bobot Skor (opsional)")
-with st.sidebar.expander("Tuning Bobot Feasibility Score"):
-    weights = DEFAULT_WEIGHTS.copy()
-    for k in list(weights.keys()):
-        weights[k] = st.slider(k, 0.0, 1.0, float(weights[k]), 0.05)
-    s = sum(weights.values()) or 1.0
-    for k in weights:
-        weights[k] = weights[k] / s
+with st.sidebar.expander("Benchmark/Target (atur sesuai kebijakan)", expanded=False):
+    bm = {}
+    for k, (ideal, worst) in DEFAULT_BENCHMARKS.items():
+        c1, c2 = st.columns(2)
+        with c1:
+            new_ideal = st.number_input(f"Ideal — {k}", value=float(ideal), step=0.1, format="%.2f")
+        with c2:
+            new_worst = st.number_input(f"Worst — {k}", value=float(worst), step=0.1, format="%.2f")
+        bm[k] = (new_ideal, new_worst)
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 3) Tampilan")
-show_kpis = st.sidebar.checkbox("Tampilkan KPI Ringkas", value=True)
-show_rank = st.sidebar.checkbox("Tampilkan Peringkat Provinsi", value=True)
-show_charts = st.sidebar.checkbox("Tampilkan Grafik", value=True)
+# =====================================
+# Main — Inputs
+# =====================================
+st.title("🇮🇩 Analisis Kelayakan Sekolah Dasar — Input Manual")
+st.write("Masukkan indikator agregat untuk **sebuah provinsi/sekolah hipotetis**. Aplikasi akan menghitung rasio, sub‑skor, dan **Feasibility Score** 0–100 berdasarkan bobot & benchmark yang kamu tentukan.")
 
-# ==========================
-# Main Page
-# ==========================
-st.title("🇮🇩 Analisis Kelayakan Sekolah Dasar (2023–2024)")
-st.write(
-    "Aplikasi interaktif untuk mengeksplor data agregat SD per provinsi dan menghitung **Feasibility Score** yang mudah diinterpretasi."
-)
-
-if uploaded is None:
-    st.info("Silakan unggah CSV untuk mulai. Contoh kolom wajib: " + ", ".join(REQUIRED_COLUMNS))
-    st.stop()
-
-try:
-    df_raw = load_data(uploaded)
-except Exception as e:
-    st.error(f"Gagal membaca CSV: {e}")
-    st.stop()
-
-if df_raw.empty:
-    st.warning("CSV kosong atau gagal diparsing.")
-    st.stop()
-
-_df = compute_ratios(df_raw)
-_df = compute_scores(_df, weights)
-
-# ==========================
-# KPI
-# ==========================
-if show_kpis:
-    total_students = int(_df["Siswa"].sum())
-    total_schools = int(_df["Sekolah"].sum())
-    total_rombel = int(_df["Rombongan Belajar"].sum())
-    avg_ptr = _safe_div(_df["Siswa"].sum(), _df["Total Guru"].sum())
-    avg_pct_s1 = _safe_div(_df["Kepala Sekolah dan Guru(≥ S1)"].sum(), _df["Total Guru"].sum()) * 100
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Total Siswa", f"{total_students:,}")
-    c2.metric("Total Sekolah", f"{total_schools:,}")
-    c3.metric("Total Rombel", f"{total_rombel:,}")
-    c4.metric("Rata2 Rasio Siswa/Guru", f"{avg_ptr:.1f} : 1")
-    c5.metric("% Guru ≥S1 (agregat)", f"{avg_pct_s1:.1f}%")
-
-# ==========================
-# Ranking
-# ==========================
-if show_rank:
-    st.subheader("🏅 Peringkat Feasibility Score per Provinsi")
-    top_n = st.slider("Tampilkan Top-N & Bottom-N", 3, 15, 5)
-
-    df_rank = _df[[
-        "Provinsi", "Feasibility Score", "% Guru ≥S1", "Rasio Siswa per Guru",
-        "Putus per 1k Siswa", "Mengulang per 1k Siswa", "Rasio Rombel per Sekolah", "Tendik per Sekolah"
-    ]]
-    df_sorted = df_rank.sort_values("Feasibility Score", ascending=False)
-
-    c1, c2 = st.columns(2)
-    c1.write("**Top Provinces**")
-    c1.dataframe(df_sorted.head(top_n), use_container_width=True)
-
-    c2.write("**Bottom Provinces**")
-    c2.dataframe(df_sorted.tail(top_n).sort_values("Feasibility Score", ascending=True), use_container_width=True)
-
-# ==========================
-# Charts
-# ==========================
-if show_charts:
-    st.subheader("📊 Visualisasi Utama")
-    sel = st.multiselect(
-        "Pilih indikator untuk bar chart",
-        ["Feasibility Score", "% Guru ≥S1", "Rasio Siswa per Guru",
-         "Putus per 1k Siswa", "Mengulang per 1k Siswa", "Rasio Rombel per Sekolah", "Tendik per Sekolah"],
-        default=["Feasibility Score", "% Guru ≥S1", "Rasio Siswa per Guru"],
-    )
-
-    if sel:
-        view = _df[["Provinsi"] + sel].sort_values("Feasibility Score", ascending=False)
-        for metric in sel:
-            fig = px.bar(view, x="Provinsi", y=metric, title=metric, height=420)
-            fig.update_layout(xaxis_tickangle=-45, margin=dict(l=10, r=10, t=50, b=100))
-            st.plotly_chart(fig, use_container_width=True)
-
-# ==========================
-# Province Explorer
-# ==========================
-st.subheader("🧭 Province Explorer & What-if Simulator")
-prov_list = _df["Provinsi"].dropna().unique().tolist()
-prov = st.selectbox("Pilih Provinsi", prov_list)
-row = _df[_df["Provinsi"] == prov].iloc[0]
-
-cA, cB, cC, cD = st.columns(4)
-cA.metric("Feasibility Score", f"{row['Feasibility Score']:.1f}")
-cB.metric("% Guru ≥S1", f"{row['% Guru ≥S1']:.1f}%")
-cC.metric("Rasio Siswa/Guru", f"{row['Rasio Siswa per Guru']:.1f} : 1")
-cD.metric("Putus per 1k", f"{row['Putus per 1k Siswa']:.2f}")
-
-with st.expander("What-if: Simulasikan Perubahan (slider)"):
-    s1 = st.slider("Δ % Guru ≥S1", -20.0, 20.0, 5.0, 0.5)
-    s2 = st.slider("Δ Rasio Siswa/Guru", -10.0, 10.0, -2.0, 0.5)
-    s3 = st.slider("Δ Putus per 1k Siswa", -2.0, 2.0, -0.5, 0.1)
-    s4 = st.slider("Δ Mengulang per 1k Siswa", -2.0, 2.0, -0.3, 0.1)
-    s5 = st.slider("Δ Rasio Rombel/Sekolah", -3.0, 3.0, 0.0, 0.1)
-    s6 = st.slider("Δ Tendik/Sekolah", -1.0, 1.0, 0.2, 0.05)
-
-    sim = row.copy()
-    sim["% Guru ≥S1"] = max(0.0, min(100.0, row["% Guru ≥S1"] + s1))
-    sim["Rasio Siswa per Guru"] = max(0.1, row["Rasio Siswa per Guru"] + s2)
-    sim["Putus per 1k Siswa"] = max(0.0, row["Putus per 1k Siswa"] + s3)
-    sim["Mengulang per 1k Siswa"] = max(0.0, row["Mengulang per 1k Siswa"] + s4)
-    sim["Rasio Rombel per Sekolah"] = max(0.1, row["Rasio Rombel per Sekolah"] + s5)
-    sim["Tendik per Sekolah"] = max(0.0, row["Tendik per Sekolah"] + s6)
-
-    _tmp = pd.concat([_df, pd.DataFrame([sim])], ignore_index=True)
-    _tmp = compute_scores(_tmp, weights)
-    new_score = float(_tmp.iloc[-1]["Feasibility Score"])
-
-    c1, c2 = st.columns(2)
+with st.form("inputs"):
+    st.subheader("Input Indikator (Agregat)")
+    c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("Skor Baru (simulasi)", f"{new_score:.1f}",
-                  delta=f"{new_score - row['Feasibility Score']:.1f}")
+        prov_name = st.text_input("Nama Provinsi/Unit (opsional)", value="Skenario A")
+        sekolah = st.number_input("Sekolah", min_value=1, value=2000, step=1)
+        siswa = st.number_input("Siswa", min_value=1, value=500000, step=100)
+        rombel = st.number_input("Rombongan Belajar", min_value=1, value=18000, step=10)
     with c2:
-        st.write("**Saran otomatis:**")
-        recs = []
-        if s1 > 0: recs.append("Tingkatkan proporsi guru ≥S1 melalui rekrutmen atau beasiswa penyetaraan.")
-        if s2 < 0: recs.append("Pertahankan penurunan rasio siswa/guru (tambah guru atau kurangi beban rombel).")
-        if s3 < 0: recs.append("Program pencegahan putus sekolah efektif — perluasan dukungan beasiswa.")
-        if s4 < 0: recs.append("Intervensi remedial menurunkan angka mengulang — lanjutkan kebijakan.")
-        if s5 < 0: recs.append("Optimasi penjadwalan untuk menekan rombel per sekolah.")
-        if s6 > 0: recs.append("Tambahan tenaga kependidikan meningkatkan tata kelola sekolah.")
-        if not recs:
-            recs = ["Tidak ada perubahan berarti."]
-        for r in recs:
-            st.markdown(f"- {r}")
+        mengulang = st.number_input("Mengulang", min_value=0, value=3000, step=10)
+        putus = st.number_input("Putus Sekolah", min_value=0, value=1200, step=10)
+        tendik_sm = st.number_input("Tenaga Kependidikan(SM)", min_value=0, value=4000, step=10)
+        tendik_gt = st.number_input("Tenaga Kependidikan(>SM)", min_value=0, value=1200, step=10)
+    with c3:
+        guru_lt = st.number_input("Kepala Sekolah dan Guru(<S1)", min_value=0, value=2500, step=10)
+        guru_ge = st.number_input("Kepala Sekolah dan Guru(≥ S1)", min_value=0, value=80000, step=100)
 
-# ==========================
-# Footer
-# ==========================
+    submitted = st.form_submit_button("Hitung Feasibility Score")
+
+if not submitted:
+    st.info("Isi form di atas lalu klik **Hitung Feasibility Score**.")
+    st.stop()
+
+# =====================================
+# Compute
+# =====================================
+raw_values = {
+    "Sekolah": sekolah,
+    "Siswa": siswa,
+    "Mengulang": mengulang,
+    "Putus Sekolah": putus,
+    "Kepala Sekolah dan Guru(<S1)": guru_lt,
+    "Kepala Sekolah dan Guru(≥ S1)": guru_ge,
+    "Tenaga Kependidikan(SM)": tendik_sm,
+    "Tenaga Kependidikan(>SM)": tendik_gt,
+    "Rombongan Belajar": rombel,
+}
+
+metrics = compute_ratios_from_counts(raw_values)
+res = compute_feasibility_score(metrics, weights, bm if 'bm' in locals() else DEFAULT_BENCHMARKS)
+
+# =====================================
+# KPIs & Score
+# =====================================
+st.subheader(f"📌 Ringkasan — {prov_name}")
+colA, colB, colC, colD, colE = st.columns(5)
+colA.metric("Feasibility Score", f"{res['score']:.1f}")
+colB.metric("% Guru ≥S1", f"{metrics['% Guru ≥S1']:.1f}%")
+colC.metric("Rasio Siswa/Guru", f"{metrics['Rasio Siswa per Guru']:.1f} : 1")
+colD.metric("Putus per 1k", f"{metrics['Putus per 1k Siswa']:.2f}")
+colE.metric("Rombel/Sekolah", f"{metrics['Rasio Rombel per Sekolah']:.2f}")
+
+# Gauge chart
+fig_g = go.Figure(go.Indicator(
+    mode="gauge+number",
+    value=res['score'],
+    gauge={'axis': {'range': [0, 100]}, 'bar': {'thickness': 0.3}},
+    title={'text': 'Feasibility Score'}
+))
+st.plotly_chart(fig_g, use_container_width=True)
+
+# Sub-score table
+st.markdown("### Sub‑Skor per Indikator (0–100)")
+sub_table = pd.DataFrame({
+    'Indikator': list(weights.keys()),
+    'Sub‑Skor': [res[k] for k in weights.keys()],
+    'Bobot': [weights[k] for k in weights.keys()],
+})
+st.dataframe(sub_table, use_container_width=True)
+
+# Radar chart (normalize 0..100)
+radar_df = pd.DataFrame({
+    'Metric': list(weights.keys()),
+    'Value': [res[k] for k in weights.keys()],
+})
+fig_radar = px.line_polar(radar_df, r='Value', theta='Metric', line_close=True, range_r=[0,100])
+st.plotly_chart(fig_radar, use_container_width=True)
+
+# =====================================
+# Recommendations
+# =====================================
+st.markdown("### Rekomendasi Otomatis")
+recs = []
+# Compare each metric to its ideal
+benchmarks = (bm if 'bm' in locals() else DEFAULT_BENCHMARKS)
+for m in weights:
+    ideal, worst = benchmarks[m]
+    v = metrics[m]
+    if m in LOWER_BETTER and not np.isnan(v):
+        if v > ideal:
+            recs.append(f"• Turunkan **{m}** (saat ini {v:.2f}; target ≤ {ideal}).")
+    if m in HIGHER_BETTER and not np.isnan(v):
+        if v < ideal:
+            recs.append(f"• Naikkan **{m}** (saat ini {v:.2f}; target ≥ {ideal}).")
+
+if not recs:
+    recs = ["• Indikator sudah memenuhi target ideal yang ditetapkan."]
+
+for r in recs:
+    st.write(r)
+
 st.markdown("---")
-st.caption(
-    "© 2025 — Analisis Kelayakan SD | Dibuat dengan Streamlit. | "
-    "Skor kelayakan bersifat indikatif, bukan penilaian resmi."
-)
+st.caption("Catatan: Feasibility Score berbasis **benchmark yang dapat dikonfigurasi** dan bukan penilaian resmi. Gunakan sebagai alat pendukung keputusan.")
