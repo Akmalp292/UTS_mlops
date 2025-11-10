@@ -21,6 +21,41 @@ st.session_state.setdefault("VERSION", "v1.3-refined")
 st.session_state.setdefault("sspi_data", None)
 
 # -----------------------------
+# Global Styles (Professional look)
+# -----------------------------
+st.markdown(
+    """
+    <style>
+      /* App background */
+      [data-testid=\"stAppViewContainer\"] {
+        background: linear-gradient(180deg,#f7f9fc 0%, #ffffff 40%);
+      }
+      /* Sidebar */
+      [data-testid=\"stSidebar\"] {
+        background: #0f172a; /* slate-900 */
+        color: #e2e8f0;
+      }
+      [data-testid=\"stSidebar\"] h1, [data-testid=\"stSidebar\"] h2, [data-testid=\"stSidebar\"] h3,
+      [data-testid=\"stSidebar\"] label, [data-testid=\"stSidebar\"] p {
+        color: #e2e8f0 !important;
+      }
+      /* Section title */
+      .section-title {
+        font-weight: 800; color: #0f172a; font-size: 1.15rem; margin: 0.25rem 0 0.5rem 0;
+      }
+      /* Card wrapper */
+      .card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(15,23,42,0.06); }
+      .kpi { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 8px 12px; box-shadow: 0 2px 8px rgba(15,23,42,0.04); }
+      /* Divider */
+      .divider { height: 1px; background: linear-gradient(90deg, rgba(15,23,42,0), rgba(15,23,42,.15), rgba(15,23,42,0)); margin: 14px 0; }
+      /* Chart containers */
+      .chart { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 8px; box-shadow: 0 2px 8px rgba(15,23,42,0.04); }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# -----------------------------
 # Constants & Helpers
 # -----------------------------
 OPT = {"StudyHours": 3.0, "SleepHours": 9.5, "ClassSize": 28.0}
@@ -76,33 +111,30 @@ def build_recommendation(vals: Dict[str, float]) -> str:
 # Header & Navigation
 # -----------------------------
 st.header("SSPI — Student Stress & Performance Insights")
-st.caption("Alat sederhana untuk memahami keseimbangan antara stres dan performa belajar siswa.")
-section = st.sidebar.radio("Navigasi", ["Input & Hasil", "Evaluasi & Saran"], index=0)
+st.caption("Alat sederhana untuk memahami keseimbangan antara stres dan performa belan"], index=0)
 
 # -----------------------------
 # SECTION 1 — INPUT & HASIL
 # -----------------------------
 if section == "Input & Hasil":
-    st.subheader("1) Input & Hasil")
+    st.subheader("Input & Hasil")
 
-    st.markdown("### Rutinitas Harian")
-    c1, c2 = st.columns(2)
-    with c1:
-        study = st.slider("Jam Belajar / Hari", 0.0, 8.0, 3.0, 0.5, help="Waktu belajar mandiri di luar jam sekolah.")
+    st.markdown('<div class="section-titlfe_allow_html=True)
+    c1, c2 = study = st.slider("Jam Belajar / Hari", 0.0, 8.0, 3.0, 0.5, help="Waktu belajar mandiri di luar jam sekolah.")
     with c2:
         sleep = st.slider("Jam Tidur / Hari", 6.0, 11.0, 9.5, 0.5, help="Durasi tidur rata-rata setiap malam.")
 
-    st.markdown("### Lingkungan Sekolah")
+    st.markdown('<div class="section-title">Lingkungan Sekolah</div>', unsafe_allow_html=True)
     c3, c4 = st.columns(2)
     with c3:
-        attend = st.slider("Kehadiran (%)", 50, 100, 95, 1, help="Persentase kehadiran siswa di sekolah.")
+        0, 100, 95, 1, help="Persentase kehadiran siswa di sekolah.")
     with c4:
         classsize = st.slider("Ukuran Kelas", 15, 45, 28, 1, help="Jumlah siswa rata-rata dalam satu kelas.")
 
-    st.markdown("### Dukungan & Beban Belajar")
+    st.markdown('<div class="section-title">Dukungan & Beban Belajar</div>', unsafe_allow_html=True)
     c5, c6 = st.columns(2)
     with c5:
-        support = st.slider("Dukungan Sekolah (0–100)", 0, 100, 70, 5, help="Konselor, kegiatan positif, komunikasi orang tua.")
+        support = st.slider("Dukungan Slor, kegiatan positif, komunikasi orang tua.")
     with c6:
         workload = st.slider("Beban Tugas (0–100)", 0, 100, 50, 5, help="PR, ujian, proyek, dll.")
 
@@ -118,36 +150,25 @@ if section == "Input & Hasil":
 
     st.markdown("---")
     cA, cB, cC = st.columns(3)
-    with cA:
-        st.metric("Kesiapan Belajar", f"{perf_score:.1f}")
-    with cB:
-        st.metric("Kesehatan Stres", f"{stress_score:.1f}")
-    with cC:
-        overall = min(perf_score, stress_score)
-        st.metric("Kesimpulan Umum", traffic_light(overall))
-
-    fig_g = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=overall,
-        gauge={
-            'axis': {'range': [0, 100]},
-            'bar': {'thickness': 0.3},
-            'steps': [
-                {'range': [0, 50], 'color': '#f2cccc'},
-                {'range': [50, 75], 'color': '#fff1cc'},
-                {'range': [75, 100], 'color': '#d9f7be'}
+with cA:
+    st.markdown('<div class="kpi">', unsafe_allow_html=True)
+    st.metric("Kesiapan Belajar", f"{perf_score:.1f}")
+    st.markdown('</div>', unsafe_allow_html=True)
+with cB:
+    st.m
             ]
         },
         title={'text': 'Keseimbangan Umum'}
     ))
     fig_g.update_layout(height=240, margin=dict(l=10, r=10, t=40, b=10))
     st.plotly_chart(fig_g, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------------
 # SECTION 2 — EVALUASI & SARAN
 # -----------------------------
 elif section == "Evaluasi & Saran":
-    st.subheader("2) Evaluasi & Saran")
+    st.subheader("Evaluasi & Saran")
     data = st.session_state.get("sspi_data")
     if not data:
         st.info("Silakan isi bagian 'Input & Hasil' terlebih dahulu.")
@@ -176,11 +197,4 @@ elif section == "Evaluasi & Saran":
                      x='Faktor', y='Skor', color='Dimensi', barmode='group', height=420,
                      title='Kekuatan Faktor — Semakin Tinggi Semakin Baik')
     fig_bar.update_layout(xaxis_tickangle=-20, margin=dict(l=10, r=10, t=50, b=100))
-    st.plotly_chart(fig_bar, use_container_width=True)
-
-    st.markdown("### Saran")
-    paragraph = build_recommendation(vals)
-    st.write(paragraph)
-
-st.markdown("---")
-st.caption("SSPI membantu memahami keseimbangan antara stres dan performa siswa. Gunakan hasil ini sebagai refleksi, bukan diagnosis.")
+    st.pl
