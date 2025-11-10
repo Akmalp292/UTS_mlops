@@ -1,7 +1,8 @@
 streamlit
-tensorflow
-numpy
 pandas
-Pillow
-matplotlib
-h5py
+numpy
+plotly
+altair
+pydeck
+geojson
+reportlab
