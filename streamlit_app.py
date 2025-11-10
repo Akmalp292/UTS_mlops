@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 # ==============================
 # CONFIG
 # ==============================
-MODEL_PATH = os.getenv("MODEL_PATH", "models/padang_food_mobilenetv3.keras")
-CLASSES_PATH = os.getenv("CLASSES_PATH", "models/classes.json")
+MODEL_PATH = "padang_food_mobilenetv3.keras"
+CLASSES_PATH = "classes.json"  # atau sesuai nama file json kamu
 TARGET_SIZE = (224, 224)  # sama seperti training
 PREPROCESS = mobilenet_v3.preprocess_input
 
