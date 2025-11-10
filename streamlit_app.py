@@ -1,133 +1,94 @@
-import os, json, glob
-import streamlit as st
+import os
+import json
 import numpy as np
-import zipfile
-from PIL import Image
+import pandas as pd
+import streamlit as st
 import tensorflow as tf
+from PIL import Image
 from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.applications import mobilenet_v3
 
-st.write("TF version:", tf.__version__)
-try:
-    import keras
-    st.write("Standalone Keras version:", keras.__version__)
-except Exception as e:
-    st.write("Standalone Keras not installed (good).")
+# =======================
+# Config
+# =======================
+MODEL_PATH = "padang_food_mobilenetv3.h5"   # model .h5 di root
+CLASSES_PATH = "classes.json"               # mapping index->label
+IMG_SIZE = (224, 224)                       # sama seperti training
+PREPROCESS = mobilenet_v3.preprocess_input  # preprocessing MobileNetV3
 
-
-# ====== Config & helpers ======
-TARGET_SIZE = (224, 224)
-PREPROCESS = mobilenet_v3.preprocess_input
-
-def find_first(*candidates):
-    """Return first existing path from candidates; else ''."""
-    for c in candidates:
-        if c and os.path.exists(c):
-            return c
-    return ""
-
-# Kandidat lokasi model (urutkan yang paling kamu inginkan dulu)
-MODEL_PATH = "padang_food_mobilenetv3.h5"
-CLASSES_PATH = "classes.json"
-
-if not MODEL_PATH:
-    
-    st.error(
-        "Model file tidak ditemukan di candidate paths. "
-        "Isi repo saat runtime:\n"
-        f"Root files: {os.listdir('.')}\n"
-        f"Models dir: {os.listdir('models') if os.path.exists('models') else 'tidak ada'}"
-    )
-    st.stop()
-
-if not CLASSES_PATH:
-    st.error(
-        "classes.json tidak ditemukan. Pastikan file mapping label ada di "
-        "`models/classes.json` atau `classes.json`."
-    )
-    st.stop()
-
-@st.cache_resource(show_spinner=False)
-def load_model_and_labels(model_path, classes_path):
-    model = load_model(model_path, compile=False)  # tf.keras 2.15 bisa baca H5 lama
+# =======================
+# Utils
+# =======================
+def read_labels(classes_path: str):
+    """Baca label dari JSON (dict index->name atau list)."""
     with open(classes_path, "r", encoding="utf-8") as f:
-        index_to_label = json.load(f)
-    labels = [index_to_label[str(i)] for i in range(model.output_shape[-1])] \
-             if isinstance(index_to_label, dict) else index_to_label
+        data = json.load(f)
+    if isinstance(data, dict):
+        # pastikan urutan 0..N-1
+        labels = [data[str(i)] for i in range(len(data))]
+    else:
+        labels = list(data)
+    return labels
+
+def make_prediction(image: Image.Image, model):
+    """Resize -> array -> preprocess -> batch -> predict."""
+    image = image.convert("RGB").resize(IMG_SIZE)
+    arr = tf.keras.utils.img_to_array(image)
+    arr = PREPROCESS(arr)
+    bat = tf.expand_dims(arr, 0)  # (1, h, w, 3)
+    preds = model.predict(bat, verbose=0)  # (1, num_classes)
+    return preds[0]  # (num_classes,)
+
+# =======================
+# Sanity checks
+# =======================
+if not os.path.exists(MODEL_PATH):
+    st.error(f"❌ Model file tidak ditemukan: {MODEL_PATH}")
+    st.stop()
+
+if not os.path.exists(CLASSES_PATH):
+    st.error(f"❌ File classes.json tidak ditemukan: {CLASSES_PATH}")
+    st.stop()
+
+# =======================
+# Load model & labels
+# =======================
+@st.cache_resource(show_spinner=False)
+def load_all(model_path, classes_path):
+    # Gunakan compile=False biar aman lintas-versi
+    model = load_model(model_path, compile=False)
+    labels = read_labels(classes_path)
     return model, labels
 
-def preprocess_pil(img_pil: Image.Image):
-    """Resize -> RGB -> array -> preprocess_input -> add batch dim"""
-    img = img_pil.convert("RGB").resize(TARGET_SIZE)
-    arr = img_to_array(img)
-    arr = PREPROCESS(arr)  # MobileNetV3 preprocess
-    arr = np.expand_dims(arr, axis=0)  # (1, h, w, 3)
-    return arr
+model, labels = load_all(MODEL_PATH, CLASSES_PATH)
 
-def predict_topk(model, arr, labels, k=3):
-    """Return top-k (label, prob) sorted desc."""
-    probs = model.predict(arr, verbose=0)[0]  # shape (num_classes,)
-    top_idx = np.argsort(probs)[::-1][:k]
-    return [(labels[i], float(probs[i])) for i in top_idx], probs
-
-def plot_probs(labels, probs, top_k=5):
-    """Bar chart probs untuk top-k"""
-    idx = np.argsort(probs)[::-1][:top_k]
-    plt.figure(figsize=(6, 3.5))
-    plt.bar([labels[i] for i in idx], [probs[i] for i in idx])
-    plt.xticks(rotation=30, ha="right")
-    plt.ylabel("Probability")
-    plt.title(f"Top-{top_k} Predictions")
-    st.pyplot(plt.gcf())
-    plt.close()
-
-# ==============================
+# =======================
 # UI
-# ==============================
-st.title("🍛 Padang Cuisine Classifier")
-st.caption("Upload foto makanan Padang → model akan memprediksi kelasnya (MobileNetV3).")
+# =======================
+st.header("🍛 Padang Cuisine Classifier")
+st.write("Upload foto makanan Padang untuk diprediksi (MobileNetV3).")
 
-# Load model
-with st.spinner("Loading model & labels..."):
-    try:
-        model, labels = load_model_and_labels(MODEL_PATH, CLASSES_PATH)
-        st.success(f"Model loaded. {len(labels)} classes.")
-    except Exception as e:
-        st.error(f"Gagal load model/labels: {e}")
-        st.stop()
+uploaded_file = st.file_uploader("Pilih gambar...", type=["jpg", "jpeg", "png"])
 
-# Sidebar info
-with st.sidebar:
-    st.header("Model Info")
-    st.write(f"**Backbone**: MobileNetV3Large")
-    st.write(f"**Input size**: {TARGET_SIZE[0]}×{TARGET_SIZE[1]}")
-    st.write(f"**Classes ({len(labels)}):**")
-    st.write(", ".join(labels))
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image.resize((360, 360)), caption="Uploaded Image", use_column_width=False)
 
-# Upload
-uploaded = st.file_uploader("Upload image (JPG/PNG)", type=["jpg", "jpeg", "png"])
+    probs = make_prediction(image, model)         # ndarray shape (num_classes,)
+    score = tf.nn.softmax(probs).numpy()          # softmax untuk skor 0..1
 
-if uploaded is not None:
-    # Preview image
-    img_bytes = uploaded.read()
-    img_pil = Image.open(BytesIO(img_bytes))
-    st.image(img_pil, caption="Preview", use_container_width=True)
+    top_idx = int(np.argmax(score))
+    top_label = labels[top_idx]
+    top_conf = float(score[top_idx]) * 100.0
 
-    # Predict
-    arr = preprocess_pil(img_pil)
-    topk, probs = predict_topk(model, arr, labels, k=3)
+    st.subheader("Hasil Prediksi")
+    st.write(f"Prediksi: **{top_label}**")
+    st.write(f"Akurasi: **{top_conf:.2f}%**")
 
-    st.subheader("Top-3 Predictions")
-    for i, (label, p) in enumerate(topk, 1):
-        st.write(f"{i}. **{label}** — {p*100:.2f}%")
-
-    # Plot bar
-    plot_probs(labels, probs, top_k=min(5, len(labels)))
-
-    # Show raw probabilities (optional)
-    with st.expander("Show raw probabilities"):
-        prob_table = {labels[i]: float(probs[i]) for i in range(len(labels))}
-        st.json(prob_table)
+    # Tabel probabilitas (opsional)
+    st.write("Probabilitas per kelas:")
+    df = pd.DataFrame({"label": labels, "prob": score})
+    df = df.sort_values("prob", ascending=False)
+    st.dataframe(df, use_container_width=True)
 else:
     st.info("Silakan upload gambar untuk diprediksi.")
