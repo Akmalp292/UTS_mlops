@@ -1,11 +1,20 @@
 import os, json, glob
 import streamlit as st
 import numpy as np
+import zipfile
 from PIL import Image
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.applications import mobilenet_v3
+
+st.write("TF version:", tf.__version__)
+try:
+    import keras
+    st.write("Standalone Keras version:", keras.__version__)
+except Exception as e:
+    st.write("Standalone Keras not installed (good).")
+
 
 # ====== Config & helpers ======
 TARGET_SIZE = (224, 224)
@@ -82,16 +91,6 @@ def plot_probs(labels, probs, top_k=5):
 # ==============================
 st.title("🍛 Padang Cuisine Classifier")
 st.caption("Upload foto makanan Padang → model akan memprediksi kelasnya (MobileNetV3).")
-
-st.write("Root dir:", os.listdir("."))
-st.write("Models dir:", os.listdir("models"))
-
-try:
-    size = os.path.getsize("models/padang_food_mobilenetv3.keras")
-    st.write("Model size (bytes):", size)
-except Exception as e:
-    st.write("Size check error:", e)
-
 
 # Load model
 with st.spinner("Loading model & labels..."):
