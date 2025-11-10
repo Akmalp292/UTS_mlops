@@ -1,7 +1,6 @@
 # =============================================
 # SSPI — Student Stress & Performance Insights
-# Two-section layout, Red-White-Blue theme, patterned background,
-# Sensitivity Explorer + embedded Evidence & References
+# Dashboard style (Weather Forecast-like), RWB theme, EDA & References
 # =============================================
 from typing import Dict
 import numpy as np
@@ -17,73 +16,113 @@ st.set_page_config(
     page_title="SSPI — Student Stress & Performance Insights",
     layout="wide",
 )
-
-st.session_state.setdefault("VERSION", "v1.7-eda")
+st.session_state.setdefault("VERSION", "v2.0-forecast")
 st.session_state.setdefault("sspi_data", None)
 
 # -----------------------------
-# Theme (fixed Red–White–Blue) + Patterned Background
+# THEME (Red–White–Blue) + Patterned Background + Forecast-like UI
 # -----------------------------
-PRIMARY = "#d90429"   # red
-SECONDARY = "#1d3557" # dark blue
-ACCENT = "#457b9d"    # light blue
+PRIMARY   = "#d90429"   # red
+SECONDARY = "#1d3557"   # dark blue
+ACCENT    = "#457b9d"   # light blue
 
 st.markdown(
     f"""
     <style>
-      /* App background with gentle stripes + gradient */
+      /* App background: subtle gradient + diagonal stripes */
       [data-testid="stAppViewContainer"] {{
         background-image:
-          linear-gradient(180deg, #ffffffaa 0%, #ffffff 30%),
+          linear-gradient(180deg, #ffffffcc 0%, #ffffff 30%),
           repeating-linear-gradient(45deg, rgba(29,53,87,0.045) 0px, rgba(29,53,87,0.045) 2px, transparent 3px, transparent 8px),
-          linear-gradient(180deg,#f7f9fc 0%, #ffffff 60%);
+          linear-gradient(180deg,#e8f0fe 0%, #ffffff 60%);
       }}
-      /* Subtle top ribbon tricolor */
+
+      /* Tricolor ribbon at top */
       .top-ribbon {{
-        height: 6px; width: 100%;
+        height: 8px; width: 100%;
         background: linear-gradient(90deg, {PRIMARY} 0%, #ffffff 50%, {SECONDARY} 100%);
-        margin-bottom: 8px;
+        margin: 0 0 12px 0;
+        border-radius: 8px;
       }}
-      /* Sidebar */
+
+      /* Sidebar: dark blue */
       [data-testid="stSidebar"] {{
         background: {SECONDARY};
         color: #e2e8f0;
+        border-top-right-radius: 16px;
+        border-bottom-right-radius: 16px;
       }}
       [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
       [data-testid="stSidebar"] label, [data-testid="stSidebar"] p {{
         color: #e2e8f0 !important;
       }}
-      /* Section title */
+
+      /* Header card (like forecast navbar) */
+      .header-card {{
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 14px 18px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+        margin-bottom: 10px;
+      }}
+      .brand {{
+        font-weight: 800; font-size: 1.25rem; color: {SECONDARY};
+      }}
+      .subbrand {{
+        font-weight: 500; font-size: 0.9rem; color: #6b7280;
+      }}
+      .inline {{
+        display: flex; align-items: center; gap: 16px; justify-content: space-between;
+      }}
+      .search-input {{
+        background: #f2f6ff; border: 1px solid #e5e7eb; border-radius: 10px;
+        padding: 8px 12px; width: 260px; color: #0f172a;
+      }}
+
+      /* Section title (bold black, with red accent bar) */
       .section-title {{
-        font-weight: 800; color: #0f172a; font-size: 1.15rem; margin: 0.25rem 0 0.5rem 0;
+        font-weight: 800; color: #0f172a; font-size: 1.1rem; margin: 0.25rem 0 0.6rem 0;
         border-left: 6px solid {PRIMARY}; padding-left: 10px;
       }}
-      /* Cards & KPI */
+
+      /* Cards & KPI tiles */
       .card {{
         background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px;
-        padding: 16px; box-shadow: 0 2px 8px rgba(15,23,42,0.06);
+        padding: 14px; box-shadow: 0 2px 10px rgba(15,23,42,0.06);
       }}
       .kpi {{
         background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px;
-        padding: 8px 12px; box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+        padding: 10px 12px; box-shadow: 0 2px 8px rgba(15,23,42,0.05);
         border-top: 4px solid {ACCENT};
+        text-align: center;
       }}
+      .kpi h4 {{ margin: 0 0 6px 0; color: {SECONDARY}; font-weight: 700; }}
+      .kpi .val {{ font-size: 1.6rem; font-weight: 800; color: {PRIMARY}; }}
+
+      /* Divider */
       .divider {{
-        height: 1px; background: linear-gradient(90deg, rgba(15,23,42,0), rgba(15,23,42,.15), rgba(15,23,42,0));
+        height: 1px; background: linear-gradient(90deg, rgba(15,23,42,0), rgba(15,23,42,.18), rgba(15,23,42,0));
         margin: 14px 0;
       }}
+
+      /* Chart wrapper (left border accent) */
       .chart {{
         background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px;
-        padding: 12px; box-shadow: 0 2px 8px rgba(15,23,42,0.04); border-left: 4px solid {PRIMARY};
+        padding: 10px; box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+        border-left: 4px solid {PRIMARY};
       }}
+
+      /* Headers & metric text color */
       h1, h2, h3 {{ color: #0f172a; }}
+      .stMetric > div > div {{ color: #0f172a !important; }}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # -----------------------------
-# Simple “Model” / Rules
+# Simple Model / Rules
 # -----------------------------
 OPT = {"StudyHours": 3.0, "SleepHours": 9.5, "ClassSize": 28.0}
 CLIP = lambda x: float(np.clip(x, 0.0, 100.0))
@@ -139,12 +178,22 @@ def section_title(text: str):
     st.markdown(f'<div class="section-title">{text}</div>', unsafe_allow_html=True)
 
 # -----------------------------
-# Header & Navigation
+# Header (Forecast-like) & Navigation
 # -----------------------------
 st.markdown('<div class="top-ribbon"></div>', unsafe_allow_html=True)
-st.header("SSPI — Student Stress & Performance Insights")
+with st.container():
+    c1, c2, c3 = st.columns([1.2, 2.0, 0.8])
+    with c1:
+        st.markdown('<div class="header-card"><div class="inline"><div><div class="brand">SSPI Forecast</div><div class="subbrand">Student Stress & Performance Insights</div></div></div></div>', unsafe_allow_html=True)
+    with c2:
+        # Non-functional cosmetic search bar (visual parity with template)
+        st.markdown(f'<div class="header-card"><input class="search-input" placeholder="Search..." /></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown('<div class="header-card" style="text-align:right;">Versi: v2.0-forecast</div>', unsafe_allow_html=True)
+
 st.caption("Alat sederhana untuk memahami keseimbangan antara stres dan performa belajar siswa.")
 
+# Sidebar navigation
 section = st.sidebar.radio("Navigasi", ["Input & Hasil", "Evaluasi & Saran"], index=0)
 
 # -----------------------------
@@ -172,7 +221,7 @@ if section == "Input & Hasil":
     with c6:
         workload = st.slider("Beban Tugas (0–100)", 0, 100, 50, 5, help="PR, ujian, proyek, dll.")
 
-    # Prediction / scoring logic
+    # Computation (live)
     vals = {
         "StudyHours": float(study),
         "SleepHours": float(sleep),
@@ -188,30 +237,26 @@ if section == "Input & Hasil":
     stress_score = weighted_score(stress, weights)
     overall = min(perf_score, stress_score)
 
-    # Persist to session for Section 2
+    # persist for Section 2
     st.session_state["sspi_data"] = {
         "vals": vals, "perf": perf, "stress": stress,
         "perf_score": perf_score, "stress_score": stress_score, "overall": overall
     }
 
-    # KPIs
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    cA, cB, cC = st.columns(3)
-    with cA:
-        st.markdown('<div class="kpi">', unsafe_allow_html=True)
-        st.metric("Kesiapan Belajar", f"{perf_score:.1f}")
-        st.markdown('</div>', unsafe_allow_html=True)
-    with cB:
-        st.markdown('<div class="kpi">', unsafe_allow_html=True)
-        st.metric("Kesehatan Stres", f"{stress_score:.1f}")
-        st.markdown('</div>', unsafe_allow_html=True)
-    with cC:
-        st.markdown('<div class="kpi">', unsafe_allow_html=True)
-        st.metric("Kesimpulan Umum", traffic_light(overall))
-        st.markdown('</div>', unsafe_allow_html=True)
+
+    # KPI Tiles (like "Today's Highlights")
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.markdown('<div class="kpi"><h4>Kesiapan Belajar</h4><div class="val">{:.1f}</div></div>'.format(perf_score), unsafe_allow_html=True)
+    with k2:
+        st.markdown('<div class="kpi"><h4>Kesehatan Stres</h4><div class="val">{:.1f}</div></div>'.format(stress_score), unsafe_allow_html=True)
+    with k3:
+        st.markdown('<div class="kpi"><h4>Kesimpulan Umum</h4><div class="val">{}</div></div>'.format(traffic_light(overall)), unsafe_allow_html=True)
+
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
     # Gauge
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
         fig_g = go.Figure(go.Indicator(
@@ -243,9 +288,8 @@ elif section == "Evaluasi & Saran":
         st.stop()
 
     vals = data["vals"]; perf = data["perf"]; stress = data["stress"]
-    perf_score = data["perf_score"]; stress_score = data["stress_score"]
 
-    # Radar chart
+    # Radar (two layers)
     radar_df = pd.DataFrame({
         'Faktor': list(vals.keys()),
         'Performa': [perf[k] for k in vals],
@@ -264,11 +308,11 @@ elif section == "Evaluasi & Saran":
         legend=dict(orientation='h', yanchor='bottom', y=-0.15, xanchor='center', x=0.5),
         polar=dict(radialaxis=dict(showline=True, linewidth=1, gridcolor="#e5e7eb"))
     )
-    st.markdown('<div class="card chart">', unsafe_allow_html=True)
+    st.markdown('<div class="chart">', unsafe_allow_html=True)
     st.plotly_chart(fig_radar, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Bar chart — Kekuatan Faktor
+    # Bar — factor strengths
     strength_df = pd.DataFrame({
         'Faktor': list(vals.keys()),
         'Performa': [perf[k] for k in vals],
@@ -276,7 +320,6 @@ elif section == "Evaluasi & Saran":
     })
     strength_df['Gabungan'] = (strength_df['Performa'] + strength_df['KesehatanStres']) / 2.0
     strength_df = strength_df.sort_values('Gabungan', ascending=False)
-
     melted = strength_df.melt(id_vars='Faktor', value_vars=['Performa','KesehatanStres'],
                               var_name='Dimensi', value_name='Skor')
     fig_bar = px.bar(
@@ -290,17 +333,16 @@ elif section == "Evaluasi & Saran":
         plot_bgcolor="#ffffff",
         paper_bgcolor="#ffffff"
     )
-    st.markdown('<div class="card chart">', unsafe_allow_html=True)
+    st.markdown('<div class="chart">', unsafe_allow_html=True)
     st.plotly_chart(fig_bar, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Sensitivity Explorer — EDA interaktif (1D what-if)
+    # Sensitivity Explorer (what-if 1D)
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("**Sensitivity Explorer**")
     factor = st.selectbox("Pilih faktor untuk disimulasikan",
                           ["Jam Tidur / Hari", "Jam Belajar / Hari", "Kehadiran (%)", "Ukuran Kelas", "Dukungan Sekolah (0–100)", "Beban Tugas (0–100)"],
                           index=0)
-    # map display -> variable key and range
     key_map = {
         "Jam Belajar / Hari": ("StudyHours", np.linspace(0, 8, 33)),
         "Jam Tidur / Hari": ("SleepHours", np.linspace(6, 11, 26)),
@@ -324,32 +366,31 @@ elif section == "Evaluasi & Saran":
     st.plotly_chart(fig_sim, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Saran (tanpa headline skor)
+    # Saran (paragraf argumentatif)
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("**Saran**")
     paragraph = build_recommendation(vals)
     st.write(paragraph)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Evidence & References (embedded sources)
+    # Evidence & References
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("**Evidence & References**")
     st.markdown("""
-- **Jam tidur anak usia sekolah (6–12 tahun) 9–12 jam/hari** — CDC merujuk rekomendasi American Academy of Sleep Medicine.  
-  Sumber: CDC (2024) dan AASM Consensus.  
+- Rekomendasi jam tidur anak usia sekolah 9–12 jam/hari — CDC & American Academy of Sleep Medicine.  
   - CDC: https://www.cdc.gov/sleep/about/index.html  
-  - AASM Consensus PDF: https://aasm.org/resources/pdf/pediatricsleepdurationconsensus.pdf
+  - AASM Consensus: https://aasm.org/resources/pdf/pediatricsleepdurationconsensus.pdf
 
-- **Ukuran kelas & rasio siswa–guru** memengaruhi lingkungan belajar; bukti dampak pada capaian campuran namun jadi tuas kebijakan umum, terlebih bagi siswa terdampak ketidakberuntungan.  
+- Ukuran kelas & rasio siswa–guru: ringkasan kebijakan & data komparatif.  
   - OECD overview: https://www.oecd.org/en/topics/sub-issues/class-size-and-student-teacher-ratios.html  
-  - Education at a Glance 2025 (ringkasan tematik): https://www.oecd.org/en/publications/education-at-a-glance-2025_1c0d9c79-en/full-report/how-do-student-teacher-ratios-and-class-sizes-vary-across-education-levels-up-to-upper-secondary-education_76b87b21.html
+  - Education at a Glance (variabilitas PTR & class size): https://www.oecd.org/en/publications/education-at-a-glance-2025_1c0d9c79-en/full-report/how-do-student-teacher-ratios-and-class-sizes-vary-across-education-levels-up-to-upper-secondary-education_76b87b21.html
 
-- **Beban tugas/pekerjaan rumah berlebihan** berasosiasi dengan kelelahan/burnout siswa.  
-  - APA Monitor (ringkasan riset): https://www.apa.org/monitor/2016/03/homework  
-  - Studi Stanford (Journal of Experimental Education): https://news.stanford.edu/stories/2014/03/too-much-homework-031014
+- Beban tugas berlebihan & burnout siswa.  
+  - APA Monitor: https://www.apa.org/monitor/2016/03/homework  
+  - Stanford (Journal of Experimental Education): https://news.stanford.edu/stories/2014/03/too-much-homework-031014
 
-- **Kehadiran** berkorelasi dengan capaian akademik; meta-analisis dan ringkasan kebijakan menunjukkan peran penting kehadiran.  
-  - Ringkasan kebijakan (mengutip meta-analisis Credé dkk.): https://www.nzcer.org.nz/news-and-blogs/student-attendance-engagement-and-achievement-sustaining-change
+- Kehadiran & capaian akademik.  
+  - Ringkasan kebijakan (mengacu meta-analisis Credé dkk.): https://www.nzcer.org.nz/news-and-blogs/student-attendance-engagement-and-achievement-sustaining-change
     """)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -358,3 +399,4 @@ elif section == "Evaluasi & Saran":
 # -----------------------------
 st.markdown("---")
 st.caption("SSPI membantu memahami keseimbangan antara stres dan performa siswa. Gunakan hasil ini sebagai refleksi, bukan diagnosis.")
+
