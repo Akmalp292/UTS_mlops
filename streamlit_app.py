@@ -19,18 +19,8 @@ def find_first(*candidates):
     return ""
 
 # Kandidat lokasi model (urutkan yang paling kamu inginkan dulu)
-MODEL_PATH = find_first(
-    "models/padang_food_mobilenetv3.keras",
-    "models/foods_classification_model_checkpoint.keras",
-    "padang_food_mobilenetv3.keras",
-    "foods_classification_model_checkpoint.keras",
-)
-
-# Kandidat lokasi label json
-CLASSES_PATH = find_first(
-    "models/classes.json",
-    "classes.json"
-)
+MODEL_PATH = "models/padang_food_mobilenetv3.keras"
+CLASSES_PATH = "models/classes.json"
 
 # Debug info kalau gagal
 if not MODEL_PATH:
