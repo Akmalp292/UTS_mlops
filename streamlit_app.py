@@ -114,29 +114,30 @@ st.header("SSPI — Student Stress & Performance Insights")
 st.caption("Alat sederhana untuk memahami keseimbangan antara stres dan performa belajar siswa.")
 section = st.sidebar.radio("Navigasi", ["Input & Hasil", "Evaluasi & Saran"], index=0)
 
-
 # -----------------------------
 # SECTION 1 — INPUT & HASIL
 # -----------------------------
 if section == "Input & Hasil":
     st.subheader("Input & Hasil")
 
-    st.markdown('<div class="section-titlfe_allow_html=True)
-    c1, c2 = study = st.slider("Jam Belajar / Hari", 0.0, 8.0, 3.0, 0.5, help="Waktu belajar mandiri di luar jam sekolah.")
+    st.markdown('<div class="section-title">Rutinitas Harian</div>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        study = st.slider("Jam Belajar / Hari", 0.0, 8.0, 3.0, 0.5, help="Waktu belajar mandiri di luar jam sekolah.")
     with c2:
         sleep = st.slider("Jam Tidur / Hari", 6.0, 11.0, 9.5, 0.5, help="Durasi tidur rata-rata setiap malam.")
 
     st.markdown('<div class="section-title">Lingkungan Sekolah</div>', unsafe_allow_html=True)
     c3, c4 = st.columns(2)
     with c3:
-        0, 100, 95, 1, help="Persentase kehadiran siswa di sekolah.")
+        attend = st.slider("Kehadiran (%)", 50, 100, 95, 1, help="Persentase kehadiran siswa di sekolah.")
     with c4:
         classsize = st.slider("Ukuran Kelas", 15, 45, 28, 1, help="Jumlah siswa rata-rata dalam satu kelas.")
 
     st.markdown('<div class="section-title">Dukungan & Beban Belajar</div>', unsafe_allow_html=True)
     c5, c6 = st.columns(2)
     with c5:
-        support = st.slider("Dukungan Slor, kegiatan positif, komunikasi orang tua.")
+        support = st.slider("Dukungan Sekolah (0–100)", 0, 100, 70, 5, help="Konselor, kegiatan positif, komunikasi orang tua.")
     with c6:
         workload = st.slider("Beban Tugas (0–100)", 0, 100, 50, 5, help="PR, ujian, proyek, dll.")
 
@@ -157,7 +158,29 @@ with cA:
     st.metric("Kesiapan Belajar", f"{perf_score:.1f}")
     st.markdown('</div>', unsafe_allow_html=True)
 with cB:
-    st.m
+    st.markdown('<div class="kpi">', unsafe_allow_html=True)
+    st.metric("Kesehatan Stres", f"{stress_score:.1f}")
+    st.markdown('</div>', unsafe_allow_html=True)
+with cC:
+    overall = min(perf_score, stress_score)
+    st.markdown('<div class="kpi">', unsafe_allow_html=True)
+    st.metric("Kesimpulan Umum", traffic_light(overall))
+    st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
+with st.container():
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    fig_g = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=overall,
+        gauge={
+            'axis': {'range': [0, 100]},
+            'bar': {'thickness': 0.3},
+            'steps': [
+                {'range': [0, 50], 'color': '#f2cccc'},
+                {'range': [50, 75], 'color': '#fff1cc'},
+                {'range': [75, 100], 'color': '#d9f7be'}
             ]
         },
         title={'text': 'Keseimbangan Umum'}
@@ -199,4 +222,11 @@ elif section == "Evaluasi & Saran":
                      x='Faktor', y='Skor', color='Dimensi', barmode='group', height=420,
                      title='Kekuatan Faktor — Semakin Tinggi Semakin Baik')
     fig_bar.update_layout(xaxis_tickangle=-20, margin=dict(l=10, r=10, t=50, b=100))
-    st.pl
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    st.markdown("### Saran")
+    paragraph = build_recommendation(vals)
+    st.write(paragraph)
+
+st.markdown("---")
+st.caption("SSPI membantu memahami keseimbangan antara stres dan performa siswa. Gunakan hasil ini sebagai refleksi, bukan diagnosis.")
