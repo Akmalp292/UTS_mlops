@@ -28,7 +28,12 @@ def find_first(*candidates):
     return ""
 
 # Kandidat lokasi model (urutkan yang paling kamu inginkan dulu)
-MODEL_PATH = "models/padang_food_mobilenetv3.keras"
+MODEL_PATH = find_first(
+    "models/padang_food_mobilenetv3.h5",      # prioritas utama
+    "models/padang_food_mobilenetv3.keras",
+    "padang_food_mobilenetv3.h5",
+    "padang_food_mobilenetv3.keras",
+)
 CLASSES_PATH = "models/classes.json"
 
 if not MODEL_PATH:
