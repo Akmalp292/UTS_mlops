@@ -62,6 +62,8 @@ def traffic_light(score):
 st.header("SSPI — Student Stress & Performance Insights")
 st.subheader("Isi data sederhana untuk melihat keseimbangan antara stres dan performa siswa.")
 
+st.markdown("## 1) Input & Hasil")
+
 # -----------------------------
 # Guided Input Sections with Notes
 # -----------------------------
@@ -141,6 +143,9 @@ fig_g = go.Figure(go.Indicator(
 fig_g.update_layout(height=240, margin=dict(l=10, r=10, t=40, b=10))
 st.plotly_chart(fig_g, use_container_width=True)
 
+st.markdown("---")
+st.markdown("## 2) Evaluasi & Saran")
+
 # Radar chart — Performance vs StressHealth
 radar_df = pd.DataFrame({
     'Metric': list(vals.keys()),
@@ -186,5 +191,6 @@ for t in tips:
 
 st.markdown("---")
 st.caption("SSPI adalah alat edukatif untuk eksplorasi keseimbangan belajar dan kesejahteraan siswa. Tidak menggantikan asesmen psikolog profesional.")
+
 
 
