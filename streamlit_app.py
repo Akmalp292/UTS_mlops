@@ -6,6 +6,7 @@ import streamlit as st
 import tensorflow as tf
 from PIL import Image
 from tensorflow.keras.models import load_model
+from io import BytesIO
 from tensorflow.keras.applications import mobilenet_v3
 
 # =======================
