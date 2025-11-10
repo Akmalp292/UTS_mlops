@@ -50,15 +50,11 @@ if not CLASSES_PATH:
 
 @st.cache_resource(show_spinner=False)
 def load_model_and_labels(model_path, classes_path):
-    model = load_model(model_path)
+    model = load_model(model_path, compile=False)  # tf.keras 2.15 bisa baca H5 lama
     with open(classes_path, "r", encoding="utf-8") as f:
         index_to_label = json.load(f)
-    # dukung format dict ataupun list
-    if isinstance(index_to_label, dict):
-        num_classes = model.output_shape[-1]
-        labels = [index_to_label[str(i)] for i in range(num_classes)]
-    else:
-        labels = index_to_label
+    labels = [index_to_label[str(i)] for i in range(model.output_shape[-1])] \
+             if isinstance(index_to_label, dict) else index_to_label
     return model, labels
 
 def preprocess_pil(img_pil: Image.Image):
