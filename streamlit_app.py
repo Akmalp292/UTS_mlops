@@ -42,6 +42,7 @@ st.markdown(f"""
   border: 1px solid #e6eef7; border-radius: 16px;
   padding: 16px 20px;
   box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+  height: 100%;
 }}
 .brand {{
   font-weight: 900; font-size: 1.4rem;
@@ -71,6 +72,23 @@ st.markdown(f"""
   background: #ffffff; border: 1px solid #e7edf5; border-radius: 14px;
   padding: 12px; border-left: 5px solid {PRIMARY};
   box-shadow: 0 12px 28px rgba(15,23,42,0.08);
+}}
+/* Author card */
+.author-card {{
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+  border: 1px solid #e6eef7; border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+  display: flex; align-items: center; gap: 12px;
+}}
+.author-meta {{
+  line-height: 1.2;
+}}
+.author-name {{
+  font-weight: 800; color: #0f172a; font-size: 1.02rem;
+}}
+.author-id {{
+  color: #64748b; font-weight: 600; font-size: 0.9rem;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -107,25 +125,60 @@ def traffic_light(s): return "Baik" if s>=75 else "Perlu Perhatian" if s>=50 els
 
 def recommendation(v):
     s=[]
-    if v["SleepHours"]<8.5: s.append("Tidurmu kurang! Idealnya 9–10 jam biar otak tetap on fire 🔥")
-    if v["Workload"]>70: s.append("Beban tugasmu padat banget. Coba atur waktu dan kasih jeda istirahat ya.")
-    if v["ClassSize"]>35: s.append("Kelas terlalu rame bisa bikin overthinking, mungkin butuh sistem kelompok kecil.")
-    if v["SchoolSupport"]<60: s.append("Butuh support lebih? Ajak guru atau temen ngobrol, biar nggak overpress.")
-    if v["StudyHours"]<2.0: s.append("Belajarnya santai boleh, tapi konsisten minimal 2 jam/hari biar nggak ketinggalan.")
-    if v["Attendance"]<90: s.append("Hadir di kelas tuh penting banget buat progress belajar, jangan sering bolos 😅")
-    return " ".join(s) if s else "Kamu udah seimbang antara belajar dan santai. Pertahankan ritme ini, tetap BETUL!"
+    if v["SleepHours"]<8.5: s.append("Kamu perlu tidur yang cukup, idealnya sekitar 9–10 jam per hari.")
+    if v["Workload"]>70: s.append("Kurangi beban tugas agar waktu istirahat dan rekreasi lebih seimbang.")
+    if v["ClassSize"]>35: s.append("Ukuran kelas yang besar dapat meningkatkan tekanan belajar, pertimbangkan pengelompokan ulang kelas.")
+    if v["SchoolSupport"]<60: s.append("Tingkatkan dukungan sekolah melalui kegiatan positif dan layanan konseling.")
+    if v["StudyHours"]<2.0: s.append("Tambahkan waktu belajar mandiri sekitar 15–30 menit setiap hari.")
+    if v["Attendance"]<90: s.append("Tingkatkan kehadiran di sekolah untuk menjaga keterlibatan akademik.")
+    return " ".join(s) if s else "Kondisi belajar dan stres tampak seimbang. Pertahankan pola tidur dan belajar yang sudah baik."
 
 # -----------------------------
-# Header
+# Header + Author Card
 # -----------------------------
 st.markdown('<div class="top-ribbon"></div>', unsafe_allow_html=True)
-st.markdown("""
-<div class="header-card">
-  <div class="brand">Belajar Santuy Dulu (BETUL)</div>
-  <div class="subbrand">Insight Stres & Performa Siswa</div>
-</div>
-""", unsafe_allow_html=True)
-st.caption("Aplikasi interaktif buat ngukur keseimbangan antara stres belajar dan performa akademikmu — biar tetap BETUL 😉")
+col_brand, col_spacer, col_author = st.columns([1.4, 0.1, 1.1])
+
+with col_brand:
+    st.markdown("""
+    <div class="header-card">
+      <div class="brand">Belajar Santuy Dulu (BETUL)</div>
+      <div class="subbrand">Insight Stres & Performa Siswa</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_author:
+    # Simple stickman SVG (inline, no external file)
+    stickman_svg = """
+    <svg width="52" height="52" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="stickman">
+      <!-- Head -->
+      <circle cx="32" cy="18" r="10" stroke="#1d3557" stroke-width="2.5" fill="#ffffff"/>
+      <!-- Eyes -->
+      <circle cx="28" cy="16.5" r="1.6" fill="#1d3557"/>
+      <circle cx="36" cy="16.5" r="1.6" fill="#1d3557"/>
+      <!-- Smile -->
+      <path d="M27 20c2 3 8 3 10 0" stroke="#1d3557" stroke-width="2" stroke-linecap="round"/>
+      <!-- Body -->
+      <line x1="32" y1="28" x2="32" y2="44" stroke="#1d3557" stroke-width="2.5"/>
+      <!-- Arms -->
+      <line x1="32" y1="32" x2="22" y2="38" stroke="#1d3557" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="32" y1="32" x2="42" y2="38" stroke="#1d3557" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- Legs -->
+      <line x1="32" y1="44" x2="24" y2="56" stroke="#1d3557" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="32" y1="44" x2="40" y2="56" stroke="#1d3557" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    """
+    st.markdown(f"""
+    <div class="author-card">
+      <div>{stickman_svg}</div>
+      <div class="author-meta">
+        <div class="author-name">Akmal Dwi Putra Mahardika</div>
+        <div class="author-id">NIM: 2802505374</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.caption("Aplikasi interaktif untuk memahami keseimbangan antara stres belajar dan performa akademik.")
 
 # Sidebar navigation
 section = st.sidebar.radio("Navigasi", ["Input & Hasil", "Evaluasi & Saran"], index=0)
@@ -187,18 +240,23 @@ if section=="Input & Hasil":
 else:
     data = st.session_state.get("data")
     if not data:
-        st.info("Isi dulu bagian 'Input & Hasil' ya.")
+        st.info("Isi dulu bagian 'Input & Hasil' terlebih dahulu.")
         st.stop()
 
     vals, perf, stress = data["vals"], data["perf"], data["stress"]
 
+    # Radar
     radar = pd.DataFrame({
         'Faktor': list(vals.keys()),
         'Performa': [perf[k] for k in vals],
         'KesehatanStres': [stress[k] for k in vals],
     })
-    fig_r = px.line_polar(radar, r='Performa', theta='Faktor', line_close=True, range_r=[0,100], color_discrete_sequence=[PRIMARY])
-    fig_r.add_trace(px.line_polar(radar, r='KesehatanStres', theta='Faktor', line_close=True, color_discrete_sequence=[SECONDARY]).data[0])
+    fig_r = px.line_polar(radar, r='Performa', theta='Faktor', line_close=True, range_r=[0,100],
+                          color_discrete_sequence=[PRIMARY])
+    fig_r.add_trace(px.line_polar(radar, r='KesehatanStres', theta='Faktor', line_close=True,
+                                  color_discrete_sequence=[SECONDARY]).data[0])
+    fig_r.update_layout(height=420, legend=dict(orientation='h', yanchor='bottom', y=-0.15, xanchor='center', x=0.5),
+                        polar=dict(radialaxis=dict(showline=True, linewidth=1, gridcolor="#e5e7eb")))
     st.markdown('<div class="chart">', unsafe_allow_html=True)
     st.plotly_chart(fig_r, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -210,8 +268,10 @@ else:
         'KesehatanStres': [stress[k] for k in vals],
     })
     strength['Gabungan'] = (strength['Performa']+strength['KesehatanStres'])/2
-    melt = strength.melt(id_vars='Faktor', value_vars=['Performa','KesehatanStres'], var_name='Dimensi', value_name='Skor')
-    fig_b = px.bar(melt, x='Faktor', y='Skor', color='Dimensi', barmode='group', height=400, color_discrete_map={'Performa':PRIMARY,'KesehatanStres':SECONDARY})
+    melt = strength.melt(id_vars='Faktor', value_vars=['Performa','KesehatanStres'],
+                         var_name='Dimensi', value_name='Skor')
+    fig_b = px.bar(melt, x='Faktor', y='Skor', color='Dimensi', barmode='group', height=400,
+                   color_discrete_map={'Performa':PRIMARY,'KesehatanStres':SECONDARY})
     st.markdown('<div class="chart">', unsafe_allow_html=True)
     st.plotly_chart(fig_b, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -220,7 +280,7 @@ else:
     st.markdown('<div class="card"><b>Saran</b></div>', unsafe_allow_html=True)
     st.write(recommendation(vals))
 
-    # References
+    # Evidence & References
     st.markdown('<div class="card"><b>Evidence & References</b></div>', unsafe_allow_html=True)
     st.markdown("""
 - Jam tidur anak usia sekolah 9–12 jam/hari — CDC & AASM  
@@ -237,5 +297,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.caption("Belajar Santuy Dulu (BETUL) — karena keseimbangan antara santai dan semangat itu kunci 🚀")
-
+st.caption("Belajar Santuy Dulu (BETUL) — seimbang itu penting untuk kemajuan belajar.")
